@@ -158,6 +158,13 @@ export default {
 
       const text = (msg.text ?? "").trim();
 
+      if (text.startsWith("/clear")) {
+        const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM transactions").first<{ n: number }>();
+        await env.DB.prepare("DELETE FROM transactions").run();
+        await tgSend(env, chatId, `همه تراکنش‌ها پاک شدن (${(count?.n ?? 0).toLocaleString("fa-IR")} تا).`);
+        return json({ ok: true });
+      }
+
       if (text.startsWith("/start")) {
         await tgSend(env, chatId,
           "سلام! همرا آماده‌ست.\n\nپیامک بانک رو بفرست تا ثبتش کنم، یا فایل CSV صورتحساب رو بفرست. برای دیدن لیست و نمودار، همرا رو باز کن:",
@@ -245,6 +252,10 @@ export default {
       }
 
       const txMatch = url.pathname.match(/^\/api\/transactions\/(\d+)$/);
+      if (txMatch && request.method === "DELETE") {
+        await env.DB.prepare("DELETE FROM transactions WHERE id = ?").bind(Number(txMatch[1])).run();
+        return json({ ok: true });
+      }
       if (txMatch && request.method === "PATCH") {
         const body = (await request.json()) as { category_id?: number | null; note?: string | null };
         const sets: string[] = [];
@@ -389,11 +400,12 @@ async function loadTx() {
       + '<div class="row"><span class="muted">'+when+'</span>' + (t.category_name?'<span class="tag" style="background:'+color+'">'+t.category_name+'</span>':'') + '</div>'
       + (t.note?'<div>'+t.note+'</div>':'')
       + '<div class="row"><select onchange="setCat('+t.id+',this.value)"><option value="">دسته…</option>'+cats.map(c=>'<option value="'+c.id+'"'+(c.id===t.category_id?' selected':'')+'>'+c.name+'</option>').join('')+'</select>'
-      + '<button onclick="setNote('+t.id+')">یادداشت</button></div></div>';
+      + '<button onclick="setNote('+t.id+')">یادداشت</button><button onclick="delTx('+t.id+')">حذف</button></div></div>';
   }).join('') || '<p class="muted">تراکنشی نیست.</p>';
 }
 async function setCat(id, v) { await api('/api/transactions/'+id, {method:'PATCH', body: JSON.stringify({category_id: v?Number(v):null})}); loadTx(); loadStats(); }
 async function setNote(id) { const n = prompt('یادداشت:'); if (n===null) return; await api('/api/transactions/'+id, {method:'PATCH', body: JSON.stringify({note: n})}); loadTx(); }
+async function delTx(id) { if (!confirm('این تراکنش حذف بشه؟')) return; await api('/api/transactions/'+id, {method:'DELETE'}); loadTx(); loadStats(); }
 async function loadStats() {
   const s = await api('/api/stats');
   drawDonut(s.donut||[], s.internal_total||0); drawBars(s.monthly||[]);
