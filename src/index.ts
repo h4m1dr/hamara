@@ -44,7 +44,7 @@ export default {
     if (url.pathname === "/app") {
       // TODO Phase 2: Telegram Mini App (card list, filters, charts). Validate initData here.
       return new Response(
-        "<!doctype html><html lang='fa' dir='rtl'><meta charset='utf-8'><title>hamara</title><body>hamara — به‌زودی</body></html>",
+        "<!doctype html><html lang='en'><meta charset='utf-8'><title>hamara</title><body>hamara — coming soon</body></html>",
         { headers: { "content-type": "text/html; charset=utf-8" } },
       );
     }
