@@ -1,47 +1,49 @@
 # hamara
 
-**همارا** — مدیریت مالی شخصی با بات تلگرام و مینی‌اپ، روی Cloudflare Workers + D1.
+Personal finance management with a Telegram bot and Mini App, on Cloudflare Workers + D1.
 
-نام از هَمارَکَرَه (Hamārakara) در پارسی باستان: «شمارش/آمار» + «کننده» — معادل امروزی‌اش «آمارگر».
+[فارسی](README.fa.md)
 
-## چی هست
+The name comes from Old Persian *Hamārakara* — "counting/statistics" + "maker" — the ancestor of the modern Persian word for "statistician".
 
-یک نفر، حساب‌های بانکی خودش، یک جای ساده برای دیدن دخل و خرج:
+## What it is
 
-- لیست گردش حساب به شکل کارت، شبیه همراه‌بانک‌ها — با یادداشت و دسته روی خود کارت
-- دسته‌بندی با رنگ جدا برای هر دسته (غذا قرمز، لباس آبی، …)
-- نمودار کیک/دونات دسته‌ها + نمودار میله‌ای ماهانه دخل و خرج
-- فیلتر ترکیبی: بانک × دسته × نوع انتقال
-- تم روز و شب
-- خروجی اکسل/شیت و خروجی تنظیمات
+One person, their own bank accounts, one simple place to see income and expenses:
 
-بات تلگرام فقط مینی‌اپ را باز می‌کند و فایل/متن می‌گیرد؛ کار اصلی داخل مینی‌اپ است، نه دستور متنی.
+- Account-turnover list as cards, like banking apps — with the note and category on the card itself
+- Categories with a distinct color each (food red, clothes blue, …)
+- Donut/pie chart by category + monthly income/expense bar chart
+- Combined filters: bank × category × transfer type
+- Light and dark themes
+- Excel/Sheet export and settings export
 
-## وضعیت
+The Telegram bot only opens the Mini App and receives files/text; the real work happens inside the Mini App, not through text commands.
 
-اسکافولد اولیه — هنوز ساخته و دیپلوی نشده.
+## Status
 
-- [ ] ساخت دیتابیس D1 روی Cloudflare و گذاشتن `database_id` در `wrangler.toml`
-- [ ] ساخت بات در BotFather و ست کردن وب‌هوک
-- [ ] فاز ۱: ورودی (متن پیامک + فایل صورت‌حساب)، لیست، دسته و رنگ، نمودار
-- [ ] فاز ۲: مینی‌اپ کامل با ظاهر کارتی
+Initial scaffold — not built or deployed yet.
 
-جزئیات: [`docs/plan.md`](docs/plan.md) — لیست ساخت: [`docs/build.md`](docs/build.md)
+- [ ] Create the D1 database on Cloudflare and put `database_id` in `wrangler.toml`
+- [ ] Create the bot in BotFather and set the webhook
+- [ ] Phase 1: inputs (SMS text + statement files), list, categories/colors, charts
+- [ ] Phase 2: full Mini App with the card UI
 
-## ورودی‌ها
+Details: [`docs/plan.md`](docs/plan.md) — build list: [`docs/build.md`](docs/build.md)
 
-1. فایل CSV/PDF صورت‌حساب بانکی (خروجی «گزارش حساب»)
-2. متن پیامک بانک به بات (قالب‌های تجارت/پاسارگاد/ملت در [`docs/parsers.md`](docs/parsers.md))
-3. ورود دستی فقط داخل مینی‌اپ
+## Inputs
 
-## دسترسی
+1. Bank statement files (CSV/PDF account-report exports)
+2. Bank SMS text sent to the bot (Tejarat/Pasargad/Mellat templates in [`docs/parsers.md`](docs/parsers.md))
+3. Manual entry only inside the Mini App
 
-برای عموم باز نیست. فقط آیدی تلگرام مشخص‌شده (`ALLOWED_TELEGRAM_ID`) می‌تواند باز کند.
+## Access
 
-## تکنولوژی
+Not public. Only the configured Telegram user id (`ALLOWED_TELEGRAM_ID`) can open it.
+
+## Stack
 
 TypeScript — Cloudflare Workers + D1 (SQLite) — Telegram Bot API + Mini App (Web App)
 
-## مجوز
+## License
 
 MIT — [LICENSE](LICENSE)

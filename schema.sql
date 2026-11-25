@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS banks (
 
 CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,              -- e.g. غذا, لباس, خرید
+  name TEXT NOT NULL,              -- user category, e.g. food, clothes, shopping
   color TEXT NOT NULL DEFAULT '#888888',
   icon TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
