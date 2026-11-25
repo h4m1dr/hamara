@@ -230,6 +230,37 @@ export function parseSms(text: string, receivedAt: Date): ParsedTransaction | nu
   return null;
 }
 
+// ---------- bulk SMS ----------
+// One Telegram message may contain several bank SMS back to back.
+// Split on blank lines and on known SMS start markers, parse each block.
+
+const SMS_START = /(?:^|\n)\s*(?=\*بانک تجارت\*|بانک ملت|حساب\s*\d|[\d.]{6,}\s*\n\s*[+-][\d,٬]+)/g;
+
+export function parseSmsBulk(text: string, receivedAt: Date): ParsedTransaction[] {
+  const t = normalizeDigits(text);
+  const starts: number[] = [];
+  for (const m of t.matchAll(SMS_START)) starts.push((m.index ?? 0) + m[0].length);
+  const blocks: string[] = [];
+  if (starts.length <= 1) {
+    blocks.push(...t.split(/\n{2,}/));
+  } else {
+    for (let i = 0; i < starts.length; i++) {
+      blocks.push(t.slice(starts[i], starts[i + 1] ?? t.length));
+    }
+  }
+  const out: ParsedTransaction[] = [];
+  const seen = new Set<string>();
+  for (const block of blocks) {
+    const tx = parseSms(block, receivedAt);
+    if (!tx) continue;
+    const key = `${tx.bank}|${tx.amountRial}|${tx.occurredAt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tx);
+  }
+  return out;
+}
+
 // ---------- statement CSV ----------
 // Generic adapter: detects common Persian/English column headers.
 // The exact Wepod export headers are still unconfirmed (no sample yet);

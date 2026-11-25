@@ -1,6 +1,6 @@
 // Parser fixture tests — synthetic data only, no real numbers/amounts.
 // Run: npm run test:parsers  (compiles src/parsers.ts to a temp dir first)
-import { parseSms, parseStatementCsv } from "../.test-build/parsers.js";
+import { parseSms, parseSmsBulk, parseStatementCsv } from "../.test-build/parsers.js";
 
 let failures = 0;
 function check(name, got, want) {
@@ -77,6 +77,26 @@ const csv = `تاریخ,شرح,بدهکار,بستانکار,مانده
 const rows = parseStatementCsv(csv, "pasargad");
 check("csv rows", rows.map((r) => ({ a: r.amountRial, b: r.balanceRial, n: r.note })),
   [{ a: -150000, b: 850000, n: "خرید" }, { a: 2000000, b: 2850000, n: "حقوق" }]);
+
+// 10. Bulk: three SMS in one message, back to back
+const bulk = parseSmsBulk(`*بانک تجارت*
+حساب: 123
+برداشت: 100,000 ریال
+از طریق: شتاب
+مانده: 900,000 ریال
+1405/08/25
+10:00
+123.456
+-200,000
+05/21_11:00
+مانده: 700,000
+حساب123
+برداشت50,000
+مانده650,000
+05/08/07-12:00`, recv);
+check("bulk count", bulk.length, 3);
+check("bulk banks", bulk.map((t) => t.bank), ["tejarat", "pasargad", "mellat"]);
+check("bulk amounts", bulk.map((t) => t.amountRial), [-100000, -200000, -50000]);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : "\nall parser tests passed");
 process.exit(failures ? 1 : 0);
