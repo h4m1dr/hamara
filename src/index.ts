@@ -5,7 +5,7 @@
 // Access: single-user allowlist (ALLOWED_TELEGRAM_ID). API calls from the
 // Mini App are authenticated with Telegram initData HMAC.
 
-import { parseSms, parseStatementCsv, type ParsedTransaction } from "./parsers";
+import { parseSmsBulk, parseStatementCsv, type ParsedTransaction } from "./parsers";
 import { APP_HTML } from "./app";
 
 export interface Env {
@@ -203,18 +203,28 @@ export default {
       }
 
       if (text) {
-        const tx = parseSms(text, new Date());
-        if (!tx) {
-          await tgSend(env, chatId, "این متن رو به‌عنوان پیامک بانک نشناختم. پیامک تجارت، پاسارگاد/ویپاد یا ملت رو بفرست، یا فایل CSV صورتحساب رو.");
+        const txs = parseSmsBulk(text, new Date());
+        if (!txs.length) {
+          await tgSend(env, chatId, "این متن رو به‌عنوان پیامک بانک نشناختم. پیامک تجارت، پاسارگاد/ویپاد یا ملت رو بفرست (می‌تونی چند تا رو با هم توی یه پیام بفرستی)، یا فایل CSV صورتحساب رو.");
           return json({ ok: true });
         }
-        const result = await saveTransaction(env, tx, "sms");
-        const bankFa = { tejarat: "تجارت", pasargad: "پاسارگاد/ویپاد", mellat: "ملت" }[tx.bank];
-        const dirFa = tx.amountRial < 0 ? "برداشت" : "واریز";
-        await tgSend(env, chatId, result === "added"
-          ? `ثبت شد: ${dirFa} ${faNum(tx.amountRial)} تومان — ${bankFa}` +
-            (tx.balanceRial !== undefined ? `\nمانده: ${faNum(tx.balanceRial)} تومان` : "")
-          : "این تراکنش قبلاً ثبت شده بود، دوباره اضافه نشد.");
+        let added = 0, skipped = 0;
+        for (const tx of txs) {
+          (await saveTransaction(env, tx, "sms")) === "added" ? added++ : skipped++;
+        }
+        if (txs.length === 1) {
+          const tx = txs[0];
+          const bankFa = { tejarat: "تجارت", pasargad: "پاسارگاد/ویپاد", mellat: "ملت" }[tx.bank];
+          const dirFa = tx.amountRial < 0 ? "برداشت" : "واریز";
+          await tgSend(env, chatId, added
+            ? `ثبت شد: ${dirFa} ${faNum(tx.amountRial)} تومان — ${bankFa}` +
+              (tx.balanceRial !== undefined ? `\nمانده: ${faNum(tx.balanceRial)} تومان` : "")
+            : "این تراکنش قبلاً ثبت شده بود، دوباره اضافه نشد.");
+        } else {
+          await tgSend(env, chatId,
+            `${added.toLocaleString("fa-IR")} تراکنش ثبت شد` +
+            (skipped ? `، ${skipped.toLocaleString("fa-IR")} تا تکراری بود و رد شد.` : "."));
+        }
         return json({ ok: true });
       }
 
