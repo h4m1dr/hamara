@@ -6,6 +6,7 @@
 // Mini App are authenticated with Telegram initData HMAC.
 
 import { parseSms, parseStatementCsv, type ParsedTransaction } from "./parsers";
+import { APP_HTML } from "./app";
 
 export interface Env {
   DB: D1Database;
@@ -251,6 +252,38 @@ export default {
         return json({ ok: true, items: results });
       }
 
+      if (url.pathname === "/api/transactions" && request.method === "POST") {
+        // Manual entry (Mini App only): amount in Toman + direction.
+        const body = (await request.json()) as {
+          bank_id?: number; amount_toman?: number; direction?: string;
+          category_id?: number | null; note?: string | null; occurred_at?: string;
+        };
+        if (!body.bank_id || !body.amount_toman) return json({ ok: false, error: "bank_id and amount_toman required" }, 400);
+        const amountRial = Math.round(body.amount_toman) * 10 * (body.direction === "in" ? 1 : -1);
+        const ins = await env.DB.prepare(
+          `INSERT INTO transactions (bank_id, category_id, amount_rial, note, occurred_at, source)
+           VALUES (?, ?, ?, ?, ?, 'manual')`,
+        ).bind(body.bank_id, body.category_id ?? null, amountRial, body.note ?? null,
+          body.occurred_at ?? new Date().toISOString()).run();
+        return json({ ok: true, id: Number(ins.meta.last_row_id) });
+      }
+
+      const catMatch = url.pathname.match(/^\/api\/categories\/(\d+)$/);
+      if (catMatch && request.method === "DELETE") {
+        await env.DB.prepare("UPDATE transactions SET category_id = NULL WHERE category_id = ?").bind(Number(catMatch[1])).run();
+        await env.DB.prepare("DELETE FROM categories WHERE id = ?").bind(Number(catMatch[1])).run();
+        return json({ ok: true });
+      }
+
+      if (url.pathname === "/api/settings/export" && request.method === "GET") {
+        const banks = await env.DB.prepare("SELECT * FROM banks").all();
+        const categories = await env.DB.prepare("SELECT * FROM categories").all();
+        const settings = await env.DB.prepare("SELECT key, value FROM settings").all();
+        return new Response(JSON.stringify({ banks: banks.results, categories: categories.results, settings: settings.results }, null, 2), {
+          headers: { "content-type": "application/json; charset=utf-8", "content-disposition": "attachment; filename=hamara-settings.json" },
+        });
+      }
+
       const txMatch = url.pathname.match(/^\/api\/transactions\/(\d+)$/);
       if (txMatch && request.method === "DELETE") {
         await env.DB.prepare("DELETE FROM transactions WHERE id = ?").bind(Number(txMatch[1])).run();
@@ -343,93 +376,3 @@ export default {
     return json({ ok: false, error: "not found" }, 404);
   },
 };
-
-// ---------- Mini App page (functional Phase 1 UI; Wepod polish is Phase 2) ----------
-
-const APP_HTML = `<!doctype html>
-<html lang="fa" dir="rtl"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>hamara</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<style>
-  :root{--bg:#f5f6f8;--card:#fff;--text:#111;--muted:#888;--line:#e5e7eb;--accent:#2563eb}
-  body.dark{--bg:#0f1115;--card:#1a1d24;--text:#eee;--muted:#9aa;--line:#2a2e38}
-  body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:12px}
-  .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px}
-  .chip{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:6px 14px;white-space:nowrap;cursor:pointer}
-  .chip.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .card{background:var(--card);border:1px solid var(--line);border-right:4px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
-  .row{display:flex;justify-content:space-between;align-items:center}
-  .amt{font-weight:700}.neg{color:#dc2626}.pos{color:#16a34a}
-  .muted{color:var(--muted);font-size:12px}
-  .tag{font-size:11px;border-radius:6px;padding:2px 8px;color:#fff}
-  select,button,input{background:var(--card);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px}
-  canvas{max-width:100%}
-</style></head><body>
-<div class="chips" id="chips"></div>
-<div class="row"><select id="fCat"></select><select id="fKind"></select>
-<button id="themeBtn">تم</button><button id="csvBtn">خروجی CSV</button></div>
-<canvas id="donut" width="320" height="320"></canvas>
-<canvas id="bars" width="360" height="200"></canvas>
-<div id="list"></div>
-<script>
-const tg = window.Telegram.WebApp; tg.ready();
-const H = {'x-telegram-init-data': tg.initData || ''};
-const $ = (id) => document.getElementById(id);
-let bank = '', cats = [];
-const toman = (r) => Math.abs(Math.round(r/10)).toLocaleString('fa-IR');
-async function api(path, opts) { const r = await fetch(path, {headers:{...H,'content-type':'application/json'}, ...opts}); return r.json(); }
-async function load() {
-  const [b, c, s] = await Promise.all([api('/api/banks'), api('/api/categories'), api('/api/settings')]);
-  cats = c.items || [];
-  if ((s.items||[]).find(x=>x.key==='theme')?.value === 'dark') document.body.classList.add('dark');
-  $('chips').innerHTML = ['<button class="chip on" data-b="">همه</button>', ...(b.items||[]).map(x=>'<button class="chip" data-b="'+x.id+'">'+x.name+'</button>')].join('');
-  document.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{bank=el.dataset.b;document.querySelectorAll('.chip').forEach(e=>e.classList.toggle('on',e===el));loadTx();});
-  $('fCat').innerHTML = '<option value="">همه دسته‌ها</option><option value="none">بدون دسته</option>' + cats.map(x=>'<option value="'+x.id+'">'+x.name+'</option>').join('');
-  const kinds = [...new Set((await api('/api/transactions?limit=500')).items.map(x=>x.kind).filter(Boolean))];
-  $('fKind').innerHTML = '<option value="">همه نوع‌ها</option>' + kinds.map(k=>'<option>'+k+'</option>').join('');
-  loadTx(); loadStats();
-}
-async function loadTx() {
-  const q = new URLSearchParams({bank, category:$('fCat').value, kind:$('fKind').value});
-  const d = await api('/api/transactions?' + q);
-  $('list').innerHTML = (d.items||[]).map(t => {
-    const color = t.category_color || '#e5e7eb';
-    const when = new Date(t.occurred_at).toLocaleString('fa-IR',{timeZone:'Asia/Tehran'});
-    return '<div class="card" style="border-right-color:'+color+'"><div class="row"><span>'+(t.bank_name||'')+(t.is_internal?' · انتقال داخلی':'')+'</span><span class="amt '+(t.amount_rial<0?'neg':'pos')+'">'+(t.amount_rial<0?'-':'+')+toman(t.amount_rial)+' تومان</span></div>'
-      + '<div class="row"><span class="muted">'+when+'</span>' + (t.category_name?'<span class="tag" style="background:'+color+'">'+t.category_name+'</span>':'') + '</div>'
-      + (t.note?'<div>'+t.note+'</div>':'')
-      + '<div class="row"><select onchange="setCat('+t.id+',this.value)"><option value="">دسته…</option>'+cats.map(c=>'<option value="'+c.id+'"'+(c.id===t.category_id?' selected':'')+'>'+c.name+'</option>').join('')+'</select>'
-      + '<button onclick="setNote('+t.id+')">یادداشت</button><button onclick="delTx('+t.id+')">حذف</button></div></div>';
-  }).join('') || '<p class="muted">تراکنشی نیست.</p>';
-}
-async function setCat(id, v) { await api('/api/transactions/'+id, {method:'PATCH', body: JSON.stringify({category_id: v?Number(v):null})}); loadTx(); loadStats(); }
-async function setNote(id) { const n = prompt('یادداشت:'); if (n===null) return; await api('/api/transactions/'+id, {method:'PATCH', body: JSON.stringify({note: n})}); loadTx(); }
-async function delTx(id) { if (!confirm('این تراکنش حذف بشه؟')) return; await api('/api/transactions/'+id, {method:'DELETE'}); loadTx(); loadStats(); }
-async function loadStats() {
-  const s = await api('/api/stats');
-  drawDonut(s.donut||[], s.internal_total||0); drawBars(s.monthly||[]);
-}
-function drawDonut(rows, internal) {
-  const cv = $('donut'), ctx = cv.getContext('2d'); ctx.clearRect(0,0,320,320);
-  const data = rows.map(r=>({v:r.total,c:r.color,n:r.name}));
-  if (internal>0) data.push({v:internal,c:'#94a3b8',n:'انتقال داخلی'});
-  const total = data.reduce((a,d)=>a+d.v,0); if (!total) { ctx.fillText('داده‌ای نیست',120,160); return; }
-  let a = -Math.PI/2;
-  for (const d of data) { const sw = d.v/total*Math.PI*2; ctx.beginPath(); ctx.moveTo(160,160); ctx.arc(160,160,140,a,a+sw); ctx.fillStyle=d.c; ctx.fill(); a+=sw; }
-  ctx.globalCompositeOperation='destination-out'; ctx.beginPath(); ctx.arc(160,160,80,0,Math.PI*2); ctx.fill(); ctx.globalCompositeOperation='source-over';
-  ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='12px sans-serif';
-  data.forEach((d,i)=>ctx.fillText(d.n+' '+toman(d.v), 10, 20+i*16));
-}
-function drawBars(rows) {
-  const cv = $('bars'), ctx = cv.getContext('2d'); ctx.clearRect(0,0,360,200);
-  if (!rows.length) return;
-  const max = Math.max(...rows.flatMap(r=>[r.income,r.expense]));
-  const w = 360/rows.length;
-  rows.forEach((r,i)=>{ const x=i*w+4; ctx.fillStyle='#16a34a'; ctx.fillRect(x,180-(r.income/max*160),w/2-4,r.income/max*160); ctx.fillStyle='#dc2626'; ctx.fillRect(x+w/2,180-(r.expense/max*160),w/2-4,r.expense/max*160); ctx.fillStyle=getComputedStyle(document.body).color; ctx.font='9px sans-serif'; ctx.fillText(r.month,x,195); });
-}
-$('fCat').onchange = loadTx; $('fKind').onchange = loadTx;
-$('themeBtn').onclick = async () => { const dark = document.body.classList.toggle('dark'); await api('/api/settings',{method:'POST',body:JSON.stringify({theme:dark?'dark':'light'})}); };
-$('csvBtn').onclick = async () => { const r = await fetch('/api/export.csv',{headers:H}); const b = await r.blob(); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download='hamara-transactions.csv'; a.click(); };
-load();
-</script></body></html>`;
