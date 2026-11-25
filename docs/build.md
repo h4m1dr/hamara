@@ -12,14 +12,15 @@
 9. `npm run deploy`, then `npm run webhook` (reads `.dev.vars`, sets the Telegram webhook to `/telegram` with the same secret — no token in the command line).
 
 ## Phase 1 — core
-- [ ] `/start` → button opening the Mini App (allowlist only)
-- [ ] SMS parsers for Tejarat/Pasargad/Mellat per `parsers.md` + fixture tests
-- [ ] Wepod CSV adapter (after seeing real headers) + dedup hash
-- [ ] Internal-transfer detection, excluded from income/expense totals
-- [ ] Transaction list API with bank × category × type filters
-- [ ] Categories + colors in settings; note on the card
-- [ ] Category donut chart + monthly bar chart
-- [ ] CSV export of transactions + settings export
+- [x] `/start` → button opening the Mini App (allowlist only); SMS text and CSV files get confirmation replies
+- [x] SMS parsers for Tejarat/Pasargad/Mellat per `parsers.md` + fixture tests (`npm run test:parsers`)
+- [x] Statement CSV adapter (generic Persian/English header detection) + dedup hash — exact Wepod headers still unconfirmed, verify on first real file
+- [x] Internal-transfer detection, excluded from income/expense totals — provisional rule: opposite equal amount in another bank within 48h
+- [x] Transaction list API with bank × category × type filters
+- [x] Categories + colors; note on the card; theme setting
+- [x] Category donut chart + monthly bar chart (stats API + functional Mini App page; Wepod polish is Phase 2)
+- [x] CSV export of transactions + settings API
+- [x] Telegram `initData` validation on the API
 
 ## Phase 2 — Mini App
 - [ ] Wepod-like card UI, light/dark themes, RTL + Jalali calendar
