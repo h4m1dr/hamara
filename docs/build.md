@@ -23,5 +23,7 @@
 - [x] Telegram `initData` validation on the API
 
 ## Phase 2 — Mini App
-- [ ] Wepod-like card UI, light/dark themes, RTL + Jalali calendar
-- [ ] Telegram `initData` validation on `/app` and the API
+- [x] Wepod-like card UI (day-grouped cards, bank chips, corner filter panel), light/dark themes, RTL + Jalali calendar
+- [x] Telegram `initData` validation on `/app` and the API (done in Phase 1)
+- [x] Manual entry inside the Mini App, category management (name + color), settings export
+- [x] Delete: per-transaction (Mini App card + API), bot `/clear` wipes all transactions
